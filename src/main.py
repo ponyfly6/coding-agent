@@ -915,11 +915,7 @@ class CodeAgent:
                 logger.warning(f"Cached PDF record for \'{filename}\' found but blob_path is missing. Will reprocess.")
         # --- End cache check ---
 
-        if not pdf_path.exists() or not pdf_path.is_file():
-            print(f"\n⚠️ Error: PDF file '{filename}' not found in {self.pdfs_dir_abs_path}.")
-            return
-
-        arxiv_id_arg = args[1] if len(args) > 1 else None
+        arxiv_id_arg = arxiv_id
 
         # --- Pre-async DB Operation: Create minimal paper record --- 
         paper_id: Optional[int] = None
@@ -951,6 +947,54 @@ class CodeAgent:
             print(f"\n❌ An unexpected error occurred before starting async processing: {e}")
             return
 
+        # Use synchronous Gemini processing by default to keep /pdf behavior
+        # predictable for CLI flows that expect an immediate paper id and
+        # database updates. Async processing is still available via
+        # `pdf_processing_method: GeminiAsync`.
+        if str(self.pdf_processing_method).lower() != "geminiasync":
+            try:
+                extracted_text = tools.extract_text_from_pdf_gemini(pdf_path, self.client, self.model_name)
+                if not extracted_text:
+                    database.update_paper_field(self.conn, paper_id, 'status', 'error_extraction')
+                    print(f"\n⚠️ Error: Failed to extract text from '{filename}'.")
+                    return None
+
+                if self.blob_dir:
+                    blob_filename = f"paper_{paper_id}_text.txt"
+                    blob_full_path = self.blob_dir / blob_filename
+                    if tools.save_text_blob(blob_full_path, extracted_text):
+                        database.update_paper_field(self.conn, paper_id, 'blob_path', blob_filename)
+                    else:
+                        database.update_paper_field(self.conn, paper_id, 'status', 'error_blob')
+                        print(f"\n⚠️ Error: Failed to save extracted text for '{filename}'.")
+                        return None
+
+                context_header = f"CONTEXT FROM PDF ('{filename}', ID: {paper_id}):\n---"
+                if MAX_PDF_CONTEXT_LENGTH is not None and isinstance(MAX_PDF_CONTEXT_LENGTH, int) and MAX_PDF_CONTEXT_LENGTH > 0:
+                    max_text_len = MAX_PDF_CONTEXT_LENGTH - len(context_header) - 50
+                    if max_text_len < 0:
+                        max_text_len = 0
+                    truncated_text = extracted_text[:max_text_len]
+                    if len(extracted_text) > max_text_len:
+                        truncated_text += "\n... [TRUNCATED]"
+                else:
+                    truncated_text = extracted_text
+                self.pending_pdf_context = f"{context_header}\n{truncated_text}\n---"
+
+                database.update_paper_field(self.conn, paper_id, 'processed_timestamp', datetime.now(timezone.utc))
+                database.update_paper_field(self.conn, paper_id, 'status', 'processed_pending_context')
+                return paper_id
+            except Exception as e:
+                logger.error(f"Synchronous PDF processing failed for '{filename}': {e}", exc_info=True)
+                database.update_paper_field(self.conn, paper_id, 'status', 'error_processing')
+                print(f"\n❌ Failed to process '{filename}': {e}")
+                return None
+
+        if not pdf_path.exists() or not pdf_path.is_file():
+            print(f"\n⚠️ Error: PDF file '{filename}' not found in {self.pdfs_dir_abs_path}.")
+            database.update_paper_field(self.conn, paper_id, 'status', 'error_file_not_found')
+            return None
+
         # --- Launch Asynchronous Task --- 
         # Use functools.partial to prepare the coroutine with its specific arguments
         # The _process_pdf_async_v2 coroutine expects (task_id, progress_bar, rich_task_id) from _launch_background_task
@@ -964,6 +1008,7 @@ class CodeAgent:
         # The _launch_background_task will print a message like:
         # "⏳ 'PDF-mypaper.pdf' (ID: <uuid>) started in background – you can keep chatting."
         # The actual result/feedback will come from the _on_task_done callback via prints.
+        return paper_id
 
     def _finalize_pdf_ingest(self, pdf_file_resource: types.File, arxiv_id: Optional[str], original_pdf_path: Path, paper_id: Optional[int], db_path_str: Optional[str]):
         """Synchronous method for final PDF ingestion steps after GenAI processing is ACTIVE.
