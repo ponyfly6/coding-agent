@@ -9,37 +9,25 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-anthropic = {version = "*", extras = ["vertex"]}
-browser-use = {version = "*", extras = ["memory"]}
-db-dtypes = "*"
-docker = "*"
-fastapi = "*"
-gunicorn = "*"
-google = "*"
-google-genai = "*"
-googlemaps = "*"
-instructor = "*"
-ipykernel = "*"
-langchain-google-genai = "*"
-markdown = "*"
-matplotlib = "*"
-notebook = "*"
-numpy = "*"
-pandas = "*"
 python = ">=3.12,<3.14"
+
+# AI SDK
+vercel-ai-sdk = "*"
+
+# Core dependencies
+docker = "*"
+prompt-toolkit = "*"
+pyyaml = "*"
 python-dotenv = "*"
-python-json-logger = "*"
-pytest-cov = "*"
-ratelimit = "*"
 requests = "*"
-scikit-learn = "*"
-seaborn = "*"
-uvicorn = "*"
-weasyprint = "*"
+
+# Optional: Direct provider SDKs (if not using AI Gateway)
+openai = "*"
+anthropic = "*"
+
+# Development tools
 ruff = "*"
 black = "*"
-feedparser = "*"
-pypdf = "*"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "*"
