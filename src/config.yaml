@@ -1,9 +1,21 @@
-api_key: None #  YOUR_API_KEY_HERE  # Replace with your actual Gemini API key if you need to - the default is to load it from your ~/.env file
-model_name: "gemini-2.5-flash-preview-05-20" # Or other compatible model
+# AI SDK Configuration
+# Model format: "provider/model" for AI Gateway
+# Examples: 
+#   - "anthropic/claude-opus-4.6"
+#   - "openai/gpt-4o"
+#   - "google/gemini-2.5-pro"
+model: "anthropic/claude-sonnet-4.6"
+
+# Optional: AI Gateway API Key (set via AI_GATEWAY_API_KEY env var)
+# Or use direct provider keys:
+# OPENAI_API_KEY, ANTHROPIC_API_KEY
+
+# Agent settings
 verbose: false
-default_thinking_budget: 256 # Default token budget for tool use / thinking
-PDFS_TO_CHAT_WITH_DIRECTORY: "PDFS/" # Relative path from project root
-SAVED_CONVERSATIONS_DIRECTORY: "SAVED_CONVERSATIONS/" # Relative path from project root
-PAPER_DB_PATH: "processed_papers/metadata.db" # Relative path for paper database
-PAPER_BLOBS_DIR: "processed_papers/blobs/"    # Relative path for text blobs
-MAX_PDF_CONTEXT_LENGTH: None # Max chars from PDF to prepend
+
+# Directories (relative to project root)
+SAVED_CONVERSATIONS_DIRECTORY: "SAVED_CONVERSATIONS/"
+
+# Sandbox settings
+sandbox_image: "python:3.12-slim"
+sandbox_memory_limit: "512m"
